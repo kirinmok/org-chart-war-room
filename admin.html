@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>管理後台</title>
+  <style>
+    body { font-family: system-ui, Arial; margin:0; }
+    header { background:#111; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; }
+    header a { color:#fff; text-decoration:none; margin-left:12px; }
+    main { padding:16px; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; }
+    button { padding:10px 12px; border-radius:10px; border:1px solid #222; background:#222; color:#fff; cursor:pointer; }
+    input { padding:8px; border-radius:8px; border:1px solid #bbb; width:100%; }
+    code { background:#f3f3f3; padding:2px 5px; border-radius:5px; }
+    .hint { font-size:13px; color:#666; line-height:1.6; }
+  </style>
+</head>
+<body>
+<header>
+  <div><strong>管理後台 (MVP)</strong></div>
+  <nav><a href="index.html">公開頁</a></nav>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1) 先填寫 API base (dev)</h2>
+    <input id="apiBase" placeholder="<老師填寫: api base url>" />
+    <div class="hint">
+      這個字段本超給學生看的。
+      <br />
+      後結合 Firebase Auth 時，只能放幾種 role：<code>admin</code> 與 <code>student</code>，
+      學生不能執行 approve/deny 路線。
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2) 待核准清單</h2>
+    <button id="loadBtn">載入</button>
+    <div id="pending" style="margin-top:12px;"></div>
+  </section>
+
+  <section class="card">
+    <h2>3) 檢核動作</h2>
+    <div class="hint">
+      必備步驟：後台 API 必須完成以下通路
+      <ol>
+        <li><code>POST /pending</code> 返回待核准</li>
+        <li><code>POST /approve</code> 需要 <code>docId</code></li>
+        <li><code>POST /deny</code> 需要 <code>docId</code></li>
+      </ol>
+      發看全部相同的資料最終會提供給 Google 加工成表格 (Apps Script / API)。
+    </div>
+  </section>
+</main>
+
+<script>
+  async function api(path, body) {
+    const apiBase = (document.getElementById('apiBase').value || '').trim();
+    if (!apiBase) throw new Error('apiBase 未設定');
+
+    const res = await fetch(apiBase + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    if (!res.ok) throw new Error('API error ' + res.status);
+    return await res.json();
+  }
+
+  async function loadPending() {
+    const box = document.getElementById('pending');
+    box.innerHTML = 'loading...';
+    try {
+      const data = await api('/pending', {});
+      box.innerHTML = data.list
+        .map(item => `<div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding:8px 0;">
+          <div>
+            <strong>${item.memberName}</strong> | ${item.classId} | ${item.role}
+          </div>
+          <div>
+            <button onclick="action('approve','${item.id}')">Approve</button>
+            <button onclick="action('deny','${item.id}')" style="background:#666;border-color:#666;">Deny</button>
+          </div>
+        </div>`)
+        .join('');
+    } catch (e) {
+      box.innerHTML = '<em>沒有後台 API，無法讀取</em>';
+    }
+  }
+
+  async function action(kind, id) {
+    try {
+      await api('/' + kind, { id });
+      await loadPending();
+      alert(kind + ' done');
+    } catch (e) {
+      alert('action failed');
+    }
+  }
+
+  document.getElementById('loadBtn').addEventListener('click', loadPending);
+</script>
+</body>
+</html>
