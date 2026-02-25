@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>戰情室 MVP</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 0; padding: 0; }
+    header { background: #111; color: #fff; padding: 12px 16px; display:flex; justify-content:space-between; }
+    header a { color:#fff; text-decoration:none; margin-left: 12px; }
+    main { padding: 16px; }
+    .card { border:1px solid #ddd; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    select, input { padding: 8px; border-radius: 8px; border:1px solid #bbb; }
+    button { padding: 10px 12px; border-radius: 10px; border:1px solid #222; background:#222; color:#fff; cursor:pointer; }
+    .hint { font-size:13px; color:#666; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<header>
+  <div><strong>戰情室</strong></div>
+  <nav>
+    <a href="admin.html">管理後台</a>
+    <a href="https://github.com/kirinmok/org-chart-war-room">原始碼</a>
+  </nav>
+</header>
+
+<main>
+  <section class="card">
+    <h2>AI 資料可讀可寫的基本範本</h2>
+
+    <div>
+      <label>班級
+        <select id="classId">
+          <option value="802">802</option>
+          <option value="803" selected>803</option>
+          <option value="804">804</option>
+        </select>
+      </label>
+      <br/><br/>
+      <label>職務
+        <select id="role">
+          <option value="ceo">執行長</option>
+          <option value="coo">營運長</option>
+          <option value="rd_mgr">研發組總統</option>
+          <option value="rd_mem">研發組成員</option>
+        </select>
+      </label>
+      <br/><br/>
+      <label>成員姓名 <input id="memberName" placeholder="只填內情" /></label>
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="submitBtn">送出申請</button>
+        <button id="refreshBtn" style="background:#444;border-color:#444;">重試讀取中</button>
+      </div>
+    </div>
+
+    <div class="hint">
+      目標：由學生申請、老師核准、公開展示、最終合併到一個表格。
+      <br/>
+      老師會應先填置下面的後台 API 埠，才會真的連上 Firebase / Drive / Excel。
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>待檢資料</h2>
+    <div id="pending"><em>等總应回。</em></div>
+  </section>
+</main>
+
+<script>
+  window.__APP_CONFIG__ = {
+    apiBase: '<老師填寫: api base url>'
+  };
+
+  function ensureConfig() {
+    if (!window.__APP_CONFIG__ || window.__APP_CONFIG__.apiBase.startsWith('<')) {
+      console.warn('[dev] apiBase 未設定');
+    }
+  }
+
+  async function api(path, body) {
+    ensureConfig();
+    const res = await fetch(window.__APP_CONFIG__.apiBase + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    if (!res.ok) throw new Error('API error ' + res.status);
+    return await res.json();
+  }
+
+  async function refresh() {
+    try {
+      const data = await api('/pending', {});
+      document.getElementById('pending').innerHTML = data.list
+        .map(x => `<div>- ${x.classId} | ${x.role} | ${x.memberName}</div>`)
+        .join('');
+    } catch (e) {
+      document.getElementById('pending').innerHTML = '<em>目前還沒有後台連線。</em>';
+    }
+  }
+
+  async function submit() {
+    const classId = document.getElementById('classId').value;
+    const role = document.getElementById('role').value;
+    const memberName = (document.getElementById('memberName').value || '').trim();
+    if (!memberName) { alert('請寫名字'); return; }
+
+    try {
+      await api('/submit', { classId, role, memberName });
+      alert('已送出，請等老師核准');
+      document.getElementById('memberName').value = '';
+      refresh();
+    } catch (e) {
+      alert('送出失敗，請稍後再試');
+    }
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', submit);
+  document.getElementById('refreshBtn').addEventListener('click', refresh);
+  refresh();
+</script>
+</body>
+</html>
